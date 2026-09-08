@@ -9,9 +9,9 @@ import { GameRenderer } from './renderer.js';
 import { ChartEditor } from './editor.js';
 import { GameEngine } from './game.js';
 
-// 初期デフォルト譜面サンプル（Rick Astley - Never Gonna Give You Up イントロ等ですぐ試せるデータ）
+// 初期デフォルト譜面サンプル（外部埋め込みフリー動画 M2qS_P_c4B4 に変更）
 const SAMPLE_CHART = {
-  videoId: 'dQw4w9WgXcQ',
+  videoId: 'M2qS_P_c4B4',
   notes: [
     { time: 1.0, lane: 0 },
     { time: 1.4, lane: 1 },

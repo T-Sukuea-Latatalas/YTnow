@@ -3,7 +3,6 @@
  * YouTube IFrame Player API の制御および高精度再生同期マネージャー
  */
 
-// ★ 先頭に export を追加しました
 export class YouTubeManager {
   constructor() {
     this.player = null;
@@ -21,27 +20,37 @@ export class YouTubeManager {
   }
 
   /**
-   * YouTube API スクリプトを安全にロードする
+   * YouTube API スクリプトを確実にロード（ポーリング併用で絶対に停止しない設計）
    */
   loadAPI() {
     return new Promise((resolve) => {
+      // すでにロード完了している場合
       if (window.YT && window.YT.Player) {
         resolve();
         return;
       }
 
-      const previousCallback = window.onYouTubeIframeAPIReady;
+      // コールバックを登録
+      const prevCallback = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
-        if (previousCallback) previousCallback();
+        if (prevCallback) prevCallback();
         resolve();
       };
 
-      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      // スクリプトタグを注入
+      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
         const tag = document.createElement('script');
         tag.src = 'https://www.youtube.com/iframe_api';
-        const firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        document.head.appendChild(tag);
       }
+
+      // 万一コールバックが発火しなかった場合の安全用ポーリング監視
+      const checkInterval = setInterval(() => {
+        if (window.YT && window.YT.Player) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 50);
     });
   }
 
@@ -52,30 +61,34 @@ export class YouTubeManager {
     this.onReadyCallback = onReady;
     this.onStateChangeCallback = onStateChange;
 
-    await this.loadAPI();
+    try {
+      await this.loadAPI();
 
-    this.player = new window.YT.Player(containerId, {
-      height: '100%',
-      width: '100%',
-      videoId: initialVideoId,
-      playerVars: {
-        playsinline: 1,
-        controls: 1,
-        disablekb: 1,
-        rel: 0,
-        modestbranding: 1,
-        enablejsapi: 1,
-        origin: window.location.origin
-      },
-      events: {
-        onReady: (event) => this._handlePlayerReady(event),
-        onStateChange: (event) => this._handleStateChange(event),
-        onError: (event) => {
-          console.error('[YouTube Error]', event.data);
-          if (this.onErrorCallback) this.onErrorCallback(event);
+      this.player = new window.YT.Player(containerId, {
+        height: '100%',
+        width: '100%',
+        videoId: initialVideoId,
+        playerVars: {
+          playsinline: 1,
+          controls: 1,
+          disablekb: 1,
+          rel: 0,
+          modestbranding: 1,
+          enablejsapi: 1
+        },
+        events: {
+          onReady: (event) => this._handlePlayerReady(event),
+          onStateChange: (event) => this._handleStateChange(event),
+          onError: (event) => {
+            console.warn('[YouTube Error Code]', event.data);
+            alert(`動画の読み込みエラー（コード: ${event.data}）。別の動画IDをお試しください。`);
+            if (this.onErrorCallback) this.onErrorCallback(event);
+          }
         }
-      }
-    });
+      });
+    } catch (e) {
+      console.error('[YouTube Init Failed]', e);
+    }
   }
 
   _handlePlayerReady(event) {
