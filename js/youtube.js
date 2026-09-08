@@ -9,59 +9,74 @@ class YouTubeManager {
     this.isReady = false;
     this.isPlaying = false;
     
-    // 高精度タイムキーパー用変数
     this.baseVideoTime = 0;
     this.basePerfTime = 0;
     this.playbackRate = 1.0;
     
-    // イベントコールバック
     this.onReadyCallback = null;
     this.onStateChangeCallback = null;
     this.onErrorCallback = null;
-
-    // ドリフト補正用ポーリングID
     this.syncIntervalId = null;
   }
 
   /**
-   * YouTube APIの初期化
-   * @param {string} containerId - iframeを埋め込む要素のID
-   * @param {string} initialVideoId - 初期表示するYouTube動画ID
-   * @param {Function} onReady - 準備完了時コールバック
-   * @param {Function} onStateChange - 状態変更時コールバック
+   * YouTube API スクリプトを安全にロードする
    */
-  init(containerId, initialVideoId, onReady, onStateChange) {
+  loadAPI() {
+    return new Promise((resolve) => {
+      if (window.YT && window.YT.Player) {
+        resolve();
+        return;
+      }
+
+      // 既存のコールバックを退避
+      const previousCallback = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (previousCallback) previousCallback();
+        resolve();
+      };
+
+      // APIスクリプトタグが存在しない場合は追加
+      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+      }
+    });
+  }
+
+  /**
+   * プレイヤー初期化
+   */
+  async init(containerId, initialVideoId, onReady, onStateChange) {
     this.onReadyCallback = onReady;
     this.onStateChangeCallback = onStateChange;
 
-    const setupPlayer = () => {
-      this.player = new window.YT.Player(containerId, {
-        height: '100%',
-        width: '100%',
-        videoId: initialVideoId,
-        playerVars: {
-          playsinline: 1,
-          controls: 1,
-          disablekb: 1,       // ゲームキー(D,F,J,K)との競合を防ぐためYTのキー操作を無効化
-          rel: 0,
-          modestbranding: 1
-        },
-        events: {
-          onReady: (event) => this._handlePlayerReady(event),
-          onStateChange: (event) => this._handleStateChange(event),
-          onError: (event) => {
-            if (this.onErrorCallback) this.onErrorCallback(event);
-          }
-        }
-      });
-    };
+    await this.loadAPI();
 
-    // YouTube APIのスクリプトロード待機
-    if (window.YT && window.YT.Player) {
-      setupPlayer();
-    } else {
-      window.onYouTubeIframeAPIReady = setupPlayer;
-    }
+    this.player = new window.YT.Player(containerId, {
+      height: '100%',
+      width: '100%',
+      videoId: initialVideoId,
+      playerVars: {
+        playsinline: 1,
+        controls: 1,
+        disablekb: 1,
+        rel: 0,
+        modestbranding: 1,
+        enablejsapi: 1,
+        origin: window.location.origin // GitHub Pagesでのオリジン指定
+      },
+      events: {
+        onReady: (event) => this._handlePlayerReady(event),
+        onStateChange: (event) => this._handleStateChange(event),
+        onError: (event) => {
+          console.error('[YouTube Error]', event.data);
+          if (this.onErrorCallback) this.onErrorCallback(event);
+        }
+      }
+    });
   }
 
   _handlePlayerReady(event) {
@@ -73,7 +88,6 @@ class YouTubeManager {
   }
 
   _handleStateChange(event) {
-    // YT.PlayerState: UNSTARTED(-1), ENDED(0), PLAYING(1), PAUSED(2), BUFFERING(3), CUED(5)
     if (event.data === window.YT.PlayerState.PLAYING) {
       this.isPlaying = true;
       this.resetTimeAnchor();
@@ -90,9 +104,6 @@ class YouTubeManager {
     }
   }
 
-  /**
-   * 現在の動画再生時間とブラウザの内部高精度時間を同期するアンカーを更新
-   */
   resetTimeAnchor() {
     if (!this.player || typeof this.player.getCurrentTime !== 'function') return;
     this.baseVideoTime = this.player.getCurrentTime();
@@ -102,9 +113,6 @@ class YouTubeManager {
     }
   }
 
-  /**
-   * 定期的なドリフト（時間のズレ）検知と補正
-   */
   startSyncTimer() {
     if (this.syncIntervalId) clearInterval(this.syncIntervalId);
     this.syncIntervalId = setInterval(() => {
@@ -115,17 +123,12 @@ class YouTubeManager {
       const internalTime = this.getCurrentTime();
       const diff = Math.abs(ytTime - internalTime);
 
-      // ズレが80ms以上生じた場合、内部時計をYouTube側に再アンカーする
       if (diff > 0.08) {
         this.resetTimeAnchor();
       }
     }, 250);
   }
 
-  /**
-   * サブフレーム精度の現在の動画時間を取得（秒単位、浮動小数点）
-   * @returns {number}
-   */
   getCurrentTime() {
     if (!this.isReady || !this.player) return 0;
     if (!this.isPlaying) {
@@ -171,20 +174,20 @@ class YouTubeManager {
     this.basePerfTime = performance.now();
   }
 
-  /**
-   * 入力文字列（URLまたは動画ID）から有効な11桁のYouTube Video IDを取り出す
-   * @param {string} input 
-   * @returns {string|null}
-   */
   static extractVideoId(input) {
     if (!input) return null;
     const trimmed = input.trim();
     if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
       return trimmed;
     }
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=[^#&?]*|&v=)([^#&?]*).*/;
     const match = trimmed.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
+    if (match) {
+      const id = match[2] || match[1];
+      const cleanId = id.replace(/.*watch\?v=/, '');
+      if (cleanId.length === 11) return cleanId;
+    }
+    return null;
   }
 }
 
