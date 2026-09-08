@@ -3,7 +3,8 @@
  * YouTube IFrame Player API の制御および高精度再生同期マネージャー
  */
 
-class YouTubeManager {
+// ★ 先頭に export を追加しました
+export class YouTubeManager {
   constructor() {
     this.player = null;
     this.isReady = false;
@@ -29,14 +30,12 @@ class YouTubeManager {
         return;
       }
 
-      // 既存のコールバックを退避
       const previousCallback = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
         if (previousCallback) previousCallback();
         resolve();
       };
 
-      // APIスクリプトタグが存在しない場合は追加
       if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
         const tag = document.createElement('script');
         tag.src = 'https://www.youtube.com/iframe_api';
@@ -66,7 +65,7 @@ class YouTubeManager {
         rel: 0,
         modestbranding: 1,
         enablejsapi: 1,
-        origin: window.location.origin // GitHub Pagesでのオリジン指定
+        origin: window.location.origin
       },
       events: {
         onReady: (event) => this._handlePlayerReady(event),
