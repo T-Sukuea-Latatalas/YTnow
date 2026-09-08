@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Rhythm Game & Chart Editor</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Google Fonts: レトロ・アーケード感のあるフォント -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <!-- 上部バー: モード切替と動画ID入力 -->
+    <header class="top-bar">
+      <div class="logo-area">
+        <span class="logo-icon">⚡</span>
+        <h1 class="logo-text">YT RHYTHM LAB</h1>
+      </div>
+
+      <div class="video-input-group">
+        <label for="videoIdInput">YouTube Video ID / URL:</label>
+        <input type="text" id="videoIdInput" placeholder="例: dQw4w9WgXcQ または YouTube URL" value="dQw4w9WgXcQ">
+        <button id="btnLoadVideo" class="btn btn-primary">動画読み込み</button>
+      </div>
+
+      <div class="mode-switch-group">
+        <button id="btnModePlay" class="btn btn-tab active">PLAY MODE</button>
+        <button id="btnModeEditor" class="btn btn-tab">CHART EDITOR</button>
+      </div>
+    </header>
+
+    <!-- ダッシュボード本体 -->
+    <main class="dashboard-container">
+      <!-- 左ペイン: 動画プレイヤー ＆ プレイ情報/エディタコントロール -->
+      <section class="left-pane">
+        <!-- 左上: YouTube プレイヤー -->
+        <div class="card player-card">
+          <div class="card-header">
+            <span class="indicator live"></span>
+            <h2>YOUTUBE MONITOR</h2>
+            <div class="video-controls">
+              <button id="btnPlayPause" class="btn btn-xs">Play / Pause</button>
+              <button id="btnRestart" class="btn btn-xs">Restart (0s)</button>
+            </div>
+          </div>
+          <div class="player-wrapper">
+            <div id="youtubePlayer"></div>
+          </div>
+        </div>
+
+        <!-- 左下 (Playモード時): スコア・判定パネル -->
+        <div id="playInfoCard" class="card info-card">
+          <div class="card-header">
+            <h2>PERFORMANCE DASHBOARD</h2>
+            <div id="playbackTimeDisplay" class="time-display">00:00.000</div>
+          </div>
+          <div class="dashboard-metrics">
+            <div class="metric-box score-box">
+              <span class="metric-label">SCORE</span>
+              <span id="scoreDisplay" class="metric-value">0000000</span>
+            </div>
+            <div class="metric-row">
+              <div class="metric-box">
+                <span class="metric-label">COMBO</span>
+                <span id="comboDisplay" class="metric-value highlight">0</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">MAX COMBO</span>
+                <span id="maxComboDisplay" class="metric-value">0</span>
+              </div>
+            </div>
+            <div class="judgment-display-container">
+              <div id="judgeText" class="judge-text ready">READY</div>
+              <div id="judgeDelta" class="judge-delta">±0ms</div>
+            </div>
+            <div class="accuracy-stats">
+              <div class="stat-pill perfect">PERFECT: <span id="countPerfect">0</span></div>
+              <div class="stat-pill great">GREAT: <span id="countGreat">0</span></div>
+              <div class="stat-pill good">GOOD: <span id="countGood">0</span></div>
+              <div class="stat-pill miss">MISS: <span id="countMiss">0</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 左下 (Editorモード時): 譜面エディタパネル -->
+        <div id="editorControlCard" class="card info-card editor-card hidden">
+          <div class="card-header">
+            <h2>CHART EDITOR CONSOLE</h2>
+            <div class="record-badge" id="recordStatusBadge">RECORD STANDBY</div>
+          </div>
+          <div class="editor-body">
+            <div class="editor-guide">
+              動画を再生中にキー <code>[ D ]</code> <code>[ F ]</code> <code>[ J ]</code> <code>[ K ]</code> を押すと、現在の再生位置にノーツが打刻されます。
+            </div>
+            <div class="editor-stats">
+              <span>総ノーツ数: <strong id="editorNoteCount">0</strong></span>
+              <button id="btnClearNotes" class="btn btn-danger btn-xs">ノーツ全消去</button>
+            </div>
+            <div class="json-box">
+              <label for="chartJsonArea">譜面 JSON データ (Import / Export):</label>
+              <textarea id="chartJsonArea" spellcheck="false" placeholder="ここに譜面JSONを貼り付けるか、作成後にエクスポートボタンを押してください..."></textarea>
+            </div>
+            <div class="editor-btn-group">
+              <button id="btnExportJson" class="btn btn-secondary">JSON 書き出し</button>
+              <button id="btnImportJson" class="btn btn-primary">JSON 読み込み</button>
+              <button id="btnCopyJson" class="btn btn-secondary">クリップボードにコピー</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 右ペイン: 音ゲープレイエリア (Canvas) -->
+      <section class="right-pane">
+        <div class="game-lane-wrapper">
+          <canvas id="gameCanvas" width="480" height="780"></canvas>
+          <!-- レーン下部キーガイド表示 -->
+          <div class="key-guide-overlay">
+            <div class="key-indicator" data-lane="0"><span>D</span></div>
+            <div class="key-indicator" data-lane="1"><span>F</span></div>
+            <div class="key-indicator" data-lane="2"><span>J</span></div>
+            <div class="key-indicator" data-lane="3"><span>K</span></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- YouTube IFrame APIの非同期ロード -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <!-- ESモジュールとしてメインロジックを読み込み -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
